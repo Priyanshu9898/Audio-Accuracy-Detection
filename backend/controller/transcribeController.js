@@ -1,15 +1,58 @@
 import speech from "@google-cloud/speech";
+
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
+import { Readable, Writable } from "stream";
+
+
 const client = new speech.SpeechClient();
+
+ffmpeg.setFfmpegPath(ffmpegPath);
+
+const convertToWav = async (buffer, mimeType) => {
+  if (mimeType === "audio/wav") {
+    return buffer;
+  }
+
+  console.log('MIME Type:', mimeType);
+  return new Promise((resolve, reject) => {
+    const input = Readable.from(buffer);
+    const inputFormat = mimeType === 'audio/mpeg' ? 'mp3' : mimeType.split('/')[1];
+    console.log('Input Stream:', inputFormat);
+    const chunks = [];
+
+    const command = ffmpeg(input)
+      .inputFormat(inputFormat)
+      .audioChannels(1)
+      .audioCodec("pcm_s16le")
+      .format("wav");
+
+    command
+      .on("error", reject)
+      .on("end", () => resolve(Buffer.concat(chunks)))
+      .pipe(
+        new Writable({
+          write(chunk, encoding, callback) {
+            chunks.push(chunk);
+            callback();
+          },
+        })
+      );
+  });
+};
+
 
 export const transcribeController = async (req, res) => {
   try {
-    const audioBytes = req.file.buffer.toString("base64");
-    const fileType = req.file.mimetype;
+    const audioBuffer  = req.file.buffer;
+    const mimeType = req.file.mimetype;
+
+    const wavBuffer = await convertToWav(audioBuffer, mimeType);
 
     const request = {
-      audio: { content: audioBytes },
+      audio: { content: wavBuffer.toString("base64") },
       config: {
-        encoding: fileType === "audio/wav" ? "LINEAR16" : "MP3",
+        encoding: mimeType === "audio/wav" ? "LINEAR16" : "MP3",
         languageCode: "en-US",
       },
     };

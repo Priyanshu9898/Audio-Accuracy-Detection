@@ -39,6 +39,7 @@ const TranscriptionForm = () => {
         setLoading(true);
         const response = await axios.post(
           "https://audio-accuracy.onrender.com/api/v1/transcribe",
+          // "http://localhost:5000/api/v1/transcribe",
           formData,
           config
         );
